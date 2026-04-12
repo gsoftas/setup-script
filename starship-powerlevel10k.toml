@@ -1,0 +1,131 @@
+add_newline = true
+command_timeout = 1000
+format = "$os$directory$git_branch$git_status\n$character"
+right_format = "$status$cmd_duration$jobs$direnv$mise$python$nodejs$ruby$golang$java$package$kubernetes$terraform$aws$azure$gcloud$time"
+
+[os]
+disabled = false
+format = "[$symbol](default)"
+
+[os.symbols]
+Macos = " "
+
+[directory]
+style = "blue"
+truncation_length = 1
+truncate_to_repo = false
+read_only = " "
+format = "[$path]($style)[$read_only]($read_only_style) "
+
+[git_branch]
+symbol = " "
+style = "green"
+format = "[$symbol$branch]($style) "
+truncation_length = 32
+truncation_symbol = "…"
+
+[git_status]
+style = "green"
+format = "([$all_status$ahead_behind]($style) )"
+conflicted = "~$count"
+ahead = "⇡$count"
+behind = "⇣$count"
+diverged = "⇕⇡${ahead_count}⇣${behind_count}"
+up_to_date = ""
+untracked = "?$count"
+stashed = "*$count"
+modified = "!$count"
+staged = "+$count"
+renamed = ">>$count"
+deleted = "x$count"
+
+[status]
+disabled = false
+style = "red"
+symbol = "✘ "
+success_symbol = "✔ "
+format = "[$symbol$common_meaning$signal_name$maybe_int]($style) "
+map_symbol = true
+recognize_signal_code = true
+
+[cmd_duration]
+min_time = 3000
+style = "yellow"
+format = "[$duration]($style) "
+show_milliseconds = false
+
+[jobs]
+symbol = "& "
+style = "red"
+number_threshold = 1
+format = "[$symbol$number]($style) "
+
+[direnv]
+disabled = false
+style = "yellow"
+format = "[direnv]($style) "
+
+[mise]
+disabled = false
+format = "[$symbol$version]($style) "
+
+[python]
+style = "cyan"
+python_binary = ["./venv/bin/python", "python3", "python"]
+format = "[${symbol}${pyenv_prefix}(${version})(\\($virtualenv\\))]($style) "
+
+[nodejs]
+style = "green"
+format = "[$symbol($version)]($style) "
+
+[ruby]
+style = "red"
+format = "[$symbol($version)]($style) "
+
+[golang]
+style = "cyan"
+format = "[$symbol($version)]($style) "
+
+[java]
+style = "blue"
+format = "[$symbol($version)]($style) "
+
+[package]
+style = "cyan"
+format = "[$symbol$version]($style) "
+
+[kubernetes]
+disabled = false
+style = "magenta"
+format = "[⎈ $context(\/$namespace)]($style) "
+
+[terraform]
+disabled = false
+style = "blue"
+format = "[tf $workspace]($style) "
+
+[aws]
+disabled = false
+style = "yellow"
+format = "[aws $profile( $region)]($style) "
+
+[azure]
+disabled = false
+style = "blue"
+format = "[az $subscription]($style) "
+
+[gcloud]
+disabled = false
+style = "blue"
+format = "[gcp $project]($style) "
+
+[time]
+disabled = false
+style = "cyan"
+time_format = "%I:%M:%S %p"
+format = "[$time]($style)"
+
+[character]
+success_symbol = "[❯](green)"
+error_symbol = "[❯](red)"
+vimcmd_symbol = "[❮](green)"
