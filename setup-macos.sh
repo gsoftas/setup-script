@@ -105,23 +105,49 @@ replace_or_append_line() {
   local pattern="$1"
   local replacement="$2"
   local file="$3"
+  local tmp_file="$file.tmp.$$"
+  local found=0
+  local line
 
   mkdir -p "$(dirname "$file")"
   touch "$file"
 
-  if grep -Eq "$pattern" "$file"; then
-    perl -0pi -e "s|$pattern|$replacement|mg" "$file"
-  else
-    printf '\n%s\n' "$replacement" >>"$file"
+  : >"$tmp_file"
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    if printf '%s\n' "$line" | grep -Eq "$pattern"; then
+      if [ "$found" -eq 0 ]; then
+        printf '%s\n' "$replacement" >>"$tmp_file"
+        found=1
+      fi
+    else
+      printf '%s\n' "$line" >>"$tmp_file"
+    fi
+  done <"$file"
+
+  if [ "$found" -eq 0 ]; then
+    printf '\n%s\n' "$replacement" >>"$tmp_file"
   fi
+
+  mv "$tmp_file" "$file"
 }
 
 remove_lines_matching() {
   local pattern="$1"
   local file="$2"
+  local tmp_file="$file.tmp.$$"
+  local line
 
   touch "$file"
-  perl -ne "print unless m|$pattern|" "$file" >"$file.tmp.$$" && mv "$file.tmp.$$" "$file"
+  : >"$tmp_file"
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    if ! printf '%s\n' "$line" | grep -Eq "$pattern"; then
+      printf '%s\n' "$line" >>"$tmp_file"
+    fi
+  done <"$file"
+
+  mv "$tmp_file" "$file"
 }
 
 install_rosetta() {
@@ -149,12 +175,26 @@ ensure_homebrew() {
   fi
 
   print_status "$COLOR_CYAN" '[install]' 'Homebrew'
-  if run_cmd /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; then
+  if [ "$DRY_RUN" = '1' ]; then
+    run_cmd env INTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     print_status "$COLOR_GREEN" '[ok]' 'Homebrew'
-  else
+    return 0
+  fi
+
+  if [ -r /dev/tty ]; then
+    if env INTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" </dev/tty; then
+      print_status "$COLOR_GREEN" '[ok]' 'Homebrew'
+      return 0
+    fi
+  elif run_cmd env INTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; then
+    print_status "$COLOR_GREEN" '[ok]' 'Homebrew'
+    return 0
+  fi
+
+  {
     warn 'Homebrew installation failed; cannot continue'
     exit 1
-  fi
+  }
 }
 
 configure_homebrew_shellenv() {
