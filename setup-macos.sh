@@ -149,7 +149,7 @@ ensure_homebrew() {
   fi
 
   print_status "$COLOR_CYAN" '[install]' 'Homebrew'
-  if NONINTERACTIVE=1 run_cmd /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; then
+  if run_cmd /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; then
     print_status "$COLOR_GREEN" '[ok]' 'Homebrew'
   else
     warn 'Homebrew installation failed; cannot continue'
