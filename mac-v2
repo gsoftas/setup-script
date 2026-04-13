@@ -1,0 +1,315 @@
+ #!/bin/sh
+
+# Welcome to the thoughtbot laptop script!
+# Be prepared to turn your laptop (or desktop, no haters here)
+# into an awesome development machine.
+
+# shellcheck disable=SC3043
+
+fancy_echo() {
+  local fmt="$1"; shift
+
+  # shellcheck disable=SC2059
+  printf "\\n$fmt\\n" "$@"
+}
+
+install_appstore_app() {
+  local name="$1"
+  local id="$2"
+
+  if ! mas list | grep -Fq "$name"; then
+    fancy_echo "Installing ${name}"
+    mas install "$id"
+  fi
+}
+
+append_to_zshrc() {
+  local text="$1" zshrc
+  local skip_new_line="${2:-0}"
+
+  if [ -w "$HOME/.zshrc.local" ]; then
+    zshrc="$HOME/.zshrc.local"
+  else
+    zshrc="$HOME/.zshrc"
+  fi
+
+  if ! grep -Fqs "$text" "$zshrc"; then
+    if [ "$skip_new_line" -eq 1 ]; then
+      printf "%s\\n" "$text" >> "$zshrc"
+    else
+      printf "\\n%s\\n" "$text" >> "$zshrc"
+    fi
+  fi
+}
+
+# shellcheck disable=SC2154
+trap 'ret=$?; test $ret -ne 0 && printf "failed\n\n" >&2; exit $ret' EXIT
+
+set -e
+
+if [ ! -d "$HOME/.bin/" ]; then
+  mkdir "$HOME/.bin"
+fi
+
+if [ ! -f "$HOME/.zshrc" ]; then
+  touch "$HOME/.zshrc"
+fi
+
+# shellcheck disable=SC2016
+append_to_zshrc 'export PATH="$HOME/.bin:$PATH"'
+
+# Determine Homebrew prefix
+arch="$(uname -m)"
+if [ "$arch" = "arm64" ]; then
+  HOMEBREW_PREFIX="/opt/homebrew"
+else
+  HOMEBREW_PREFIX="/usr/local"
+fi
+
+update_shell() {
+  local shell_path;
+  shell_path="$(command -v zsh)"
+
+  fancy_echo "Changing your shell to zsh ..."
+  if ! grep "$shell_path" /etc/shells > /dev/null 2>&1 ; then
+    fancy_echo "Adding '$shell_path' to /etc/shells"
+    sudo sh -c "echo $shell_path >> /etc/shells"
+  fi
+  sudo chsh -s "$shell_path" "$USER"
+}
+
+case "$SHELL" in
+  */zsh)
+    if [ "$(command -v zsh)" != "$HOMEBREW_PREFIX/bin/zsh" ] ; then
+      update_shell
+    fi
+    ;;
+  *)
+    update_shell
+    ;;
+esac
+
+# checks architecture
+if [ "$(uname -m)" = "arm64" ]
+  then
+  # checks if Rosetta is already installed
+  if ! pkgutil --pkg-info=com.apple.pkg.RosettaUpdateAuto > /dev/null 2>&1
+  then
+    echo "Installing Rosetta"
+    # Installs Rosetta2
+    softwareupdate --install-rosetta --agree-to-license
+  else
+    echo "Rosetta is installed"
+  fi
+fi
+
+
+gem_install_or_update() {
+  if gem list "$1" --installed > /dev/null; then
+    gem update "$@"
+  else
+    gem install "$@"
+  fi
+}
+
+if ! command -v brew >/dev/null; then
+  fancy_echo "Installing Homebrew ..."
+    /bin/bash -c \
+      "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+    append_to_zshrc "eval \"\$($HOMEBREW_PREFIX/bin/brew shellenv)\""
+
+    export PATH="$HOMEBREW_PREFIX/bin:$PATH"
+
+    fancy_echo "Configuring Homebrew Analytics"
+
+    export HOMEBREW_NO_ANALYTICS=1
+    brew analytics off
+    #sudo chown -R $(whoami) /usr/local/lib/pkgconfig
+fi
+
+if brew list | grep -Fq brew-cask; then
+  fancy_echo "Uninstalling old Homebrew-Cask ..."
+  brew uninstall --force brew-cask
+fi
+
+fancy_echo "Updating Homebrew formulae ..."
+brew update --force # https://github.com/Homebrew/brew/issues/1151
+brew bundle --file=- <<EOF
+#tap 'homebrew/bundle'
+#tap "homebrew/services"
+
+# Unix
+brew "openssl"
+brew "the_silver_searcher"
+brew "tmux"
+brew "vim"
+brew "watchman"
+
+# GitHub
+brew "gh"
+
+# Image manipulation
+brew "imagemagick"
+
+# Programming language prerequisites and package managers
+brew "libyaml" # should come after openssl
+brew "coreutils"
+brew "uv" # Python Package Manager
+
+# Databases
+# brew "postgres", restart_service: :changed
+# brew "redis", restart_service: :changed
+
+brew "htop"
+cask "docker"
+cask "visual-studio-code"
+cask "zed"
+cask "dropbox"
+cask "google-chrome"
+cask "imageoptim"
+cask "the-unarchiver"
+cask "vlc"
+cask "iina"
+cask "handbrake"
+cask "raycast"
+brew "mas"
+cask "rectangle"
+cask "firefox"
+cask "firefox@nightly"
+cask "stats"
+cask "brave-browser"
+
+brew "wget"
+#cask "protonvpn"
+brew "yt-dlp"
+brew "bat"
+brew "diffutils"
+brew "eza"
+brew "fd"
+brew "ffmpeg"
+brew "git"
+brew "git-delta"
+brew "grep"
+cask "disk-inventory-x"
+cask "1password@7"
+
+brew "ollama"
+
+# Development Tools
+cask "iterm2"
+cask "zed"
+cask "ghostty"
+brew "http-server"
+cask "httpie"
+brew "pnpm"
+
+#Install zsh tools
+brew "zsh-autosuggestions"
+brew "zsh-syntax-highlighting"
+brew "zsh-completions"
+#brew "zsh-history-substring-search"
+#brew "zsh-interactive-cd"
+#brew "zsh-navigation-tools"
+
+EOF
+
+fancy_echo "Installing Oh-My-Zsh"
+if test -e "/Users/${USER}/.oh-my-zsh"; then
+    continue
+else
+    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+fi
+
+fancy_echo "Configuring mise version manager ..."
+brew install mise
+echo 'eval "$(mise activate zsh)"' >> ~/.zshrc
+
+# Python
+fancy_echo "Installing Latest Python version"
+mise use -g python@3.13.2
+# Ruby
+fancy_echo "Installing Latest Ruby version"
+mise use -g ruby@3.4.2
+# Node
+fancy_echo "Installing Latest Node version"
+mise use -g node@23.8.0
+
+fancy_echo "--- Running Custom Application Installation Script ---"
+
+# if [ -f "$HOME/.laptop.local" ]; then
+#   fancy_echo "Running your customizations from ~/.laptop.local ..."
+#   # shellcheck disable=SC1091
+#   # . "$HOME/.laptop.local"
+# fi
+
+fancy_echo "Installing App Store Software"
+
+# == Video Editing ==
+
+#install_appstore_app "Final Cut Pro" "424389933"     # Final Cut Pro
+
+#fancy_echo "Installing DaVinci Resolve"
+#mas install 571213070     # DaVinci Resolve
+
+# fancy_echo "Installing Motion"
+#mas install 434290957   # Motion
+
+#fancy_echo "Compressor"
+#mas install 424390742     # Compressor
+# == /Video Editing ==
+
+# == Music Production ==
+mas install 634148309     # Logic Pro X
+# == /Music Production ==
+
+# == Productivity ==
+mas install 904280696     # Things
+mas install 1091189122    # Bear
+mas install 409203825     # Numbers
+#mas install 409201541     # Pages
+#mas install 409183694     # Keynote
+#mas install 918858936     # Airmail 3
+mas install 715768417     # Microsoft Remote Desktop
+# mas install 406056744   # Evernote
+# == /Productivity ==
+
+# == Utilities ==
+mas install 411246225     # Caffeine
+mas install 425424353     # The Unarchiver
+mas install 905953485    # NordVPN
+mas install 1440147259    # AdGuard for Safari
+# == /Utilities ==
+
+# == Software Development ==
+mas install 497799835     # XCode
+#mas install 421879749     # Rested
+# == /Software Development ==
+
+# == Photo Editing / Management ==
+#mas install 824183456     # Affinity Photo
+#mas install 824171161     # Affinity Designer
+# mas install 924891282   # Pixave
+# == /Photo Editing / Management ==
+
+fancy_echo "Installing customizations"
+
+# Powerlevel10k https://chamikakasun.medium.com/iterm2-zsh-oh-my-zsh-the-most-power-full-terminal-on-macos-2021-guide-macos-big-sur-5bb498976dc9
+
+#Install powerlevel10k
+#git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
+
+zsh_theme="powerlevel10k/powerlevel10k"
+sed -i '' "s|robbyrussell|$zsh_theme|g" ~/.zshrc
+
+fancy_echo "Installing OS Level Customizations"
+defaults write com.apple.dock orientation left # Set Menu Bar to the Left
+defaults write com.apple.dock "autohide" -bool "true" # Autohide Menu Bar
+killall Dock # Restart the Dock
+
+fancy_echo "Install ZSH Autosuggestions"
+if test -e "/Users/${USER}/.oh-my-zsh/custom/plugins/zsh-autosuggestions"; then
+    continue
+else
+    git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
+fi
